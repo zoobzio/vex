@@ -1,0 +1,129 @@
+# GoReleaser configuration for vex - Type-safe embedding vector generation for Go
+
+version: 2
+
+project_name: vex
+
+# Skip building binaries (library package)
+builds:
+  - skip: true
+
+# Archive configuration
+archives:
+  - id: source
+    files:
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - "LICENSE"
+      - "README.md"
+      - "Makefile"
+      - "docs/**/*"
+      - "openai/**/*"
+      - "cohere/**/*"
+      - "voyage/**/*"
+      - "gemini/**/*"
+      - ".golangci.yml"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+
+# Checksum configuration
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Changelog configuration
+changelog:
+  use: github
+  sort: asc
+  abbrev: 7
+  groups:
+    - title: "✨ Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "⚡ Performance"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "♻️ Refactoring"
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: "📚 Documentation"
+      regexp: '^.*?docs?(\([[:word:]]+\))??!?:.+$'
+      order: 4
+    - title: "🧪 Testing"
+      regexp: '^.*?test(\([[:word:]]+\))??!?:.+$'
+      order: 5
+    - title: "🔧 Maintenance"
+      regexp: '^.*?chore(\([[:word:]]+\))??!?:.+$'
+      order: 6
+    - title: "🏗️ Build System"
+      regexp: '^.*?build(\([[:word:]]+\))??!?:.+$'
+      order: 7
+    - title: "📦 Dependencies"
+      regexp: '^.*?deps?(\([[:word:]]+\))??!?:.+$'
+      order: 8
+    - title: "Other Changes"
+      order: 999
+  filters:
+    exclude:
+      - "^Merge"
+      - "^merge"
+      - "^wip"
+      - "^WIP"
+      - "^docs:"
+      - "^test:"
+
+# Release configuration
+release:
+  github:
+    owner: zoobzio
+    name: vex
+
+  name_template: "{{ .ProjectName }} v{{ .Version }}"
+  draft: false
+  prerelease: auto
+  mode: append
+
+  header: |
+    ## vex v{{ .Version }}
+
+    Type-safe embedding vector generation for Go.
+
+    ### Installation
+
+    ```bash
+    go get github.com/zoobzio/vex@v{{ .Version }}
+    ```
+
+    ### Requirements
+    - Go 1.24 or higher
+
+  footer: |
+    ---
+
+    **Full Documentation:** https://github.com/zoobzio/vex/tree/v{{ .Version }}/docs
+
+    Thanks to all contributors!
+
+# Announce releases
+announce:
+  skip: true
+
+# Snapshot configuration
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+# Source configuration
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+
+# Git configuration
+git:
+  tag_sort: -version:refname
+  ignore_tags:
+    - ".*-rc.*"
+    - ".*-beta.*"
+    - ".*-alpha.*"
