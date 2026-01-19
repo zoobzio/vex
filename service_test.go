@@ -21,8 +21,8 @@ func newMockProvider(dims int) *mockProvider {
 	}
 }
 
-func (p *mockProvider) Name() string       { return p.name }
-func (p *mockProvider) Dimensions() int    { return p.dimensions }
+func (p *mockProvider) Name() string    { return p.name }
+func (p *mockProvider) Dimensions() int { return p.dimensions }
 
 func (p *mockProvider) Embed(_ context.Context, texts []string) (*EmbeddingResponse, error) {
 	p.callCount++
@@ -34,7 +34,7 @@ func (p *mockProvider) Embed(_ context.Context, texts []string) (*EmbeddingRespo
 	for i := range texts {
 		vec := make(Vector, p.dimensions)
 		for j := 0; j < p.dimensions; j++ {
-			vec[j] = float64(j) / float64(p.dimensions)
+			vec[j] = float32(j) / float32(p.dimensions)
 		}
 		vectors[i] = vec
 	}
@@ -48,6 +48,25 @@ func (p *mockProvider) Embed(_ context.Context, texts []string) (*EmbeddingRespo
 			TotalTokens:  len(texts) * 5,
 		},
 	}, nil
+}
+
+// mockQueryProvider implements QueryProviderFactory for testing.
+type mockQueryProvider struct {
+	*mockProvider
+	queryMode bool
+}
+
+func newMockQueryProvider(dims int) *mockQueryProvider {
+	return &mockQueryProvider{
+		mockProvider: newMockProvider(dims),
+	}
+}
+
+func (p *mockQueryProvider) ForQuery() Provider {
+	return &mockQueryProvider{
+		mockProvider: p.mockProvider,
+		queryMode:    true,
+	}
 }
 
 func TestService_Embed(t *testing.T) {
@@ -139,6 +158,72 @@ func TestService_Batch(t *testing.T) {
 	})
 }
 
+func TestService_EmbedQuery(t *testing.T) {
+	t.Run("uses query provider when available", func(t *testing.T) {
+		provider := newMockQueryProvider(256)
+		svc := NewService(provider)
+
+		vec, err := svc.EmbedQuery(context.Background(), "search query")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if vec == nil {
+			t.Error("expected vector, got nil")
+		}
+	})
+
+	t.Run("falls back to regular embed without query provider", func(t *testing.T) {
+		provider := newMockProvider(256)
+		svc := NewService(provider)
+
+		vec, err := svc.EmbedQuery(context.Background(), "search query")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if vec == nil {
+			t.Error("expected vector, got nil")
+		}
+
+		// Should have called the regular provider
+		if provider.callCount != 1 {
+			t.Errorf("expected 1 call, got %d", provider.callCount)
+		}
+	})
+}
+
+func TestService_BatchQuery(t *testing.T) {
+	t.Run("returns correct number of vectors", func(t *testing.T) {
+		provider := newMockQueryProvider(256)
+		svc := NewService(provider)
+
+		texts := []string{"query one", "query two"}
+		vecs, err := svc.BatchQuery(context.Background(), texts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(vecs) != len(texts) {
+			t.Errorf("expected %d vectors, got %d", len(texts), len(vecs))
+		}
+	})
+
+	t.Run("handles empty input", func(t *testing.T) {
+		provider := newMockQueryProvider(256)
+		svc := NewService(provider)
+
+		vecs, err := svc.BatchQuery(context.Background(), []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if vecs != nil {
+			t.Errorf("expected nil for empty input")
+		}
+	})
+}
+
 func TestService_WithNormalize(t *testing.T) {
 	t.Run("can disable normalization", func(t *testing.T) {
 		provider := newMockProvider(256)
@@ -207,5 +292,157 @@ func TestService_Provider(t *testing.T) {
 
 	if svc.Provider() != provider {
 		t.Error("expected same provider instance")
+	}
+}
+
+func TestService_GetPipeline(t *testing.T) {
+	provider := newMockProvider(256)
+	svc := NewService(provider)
+
+	if svc.GetPipeline() == nil {
+		t.Error("expected non-nil pipeline")
+	}
+}
+
+// mockEmptyProvider returns empty responses.
+type mockEmptyProvider struct {
+	*mockProvider
+}
+
+func (p *mockEmptyProvider) Embed(_ context.Context, _ []string) (*EmbeddingResponse, error) {
+	p.callCount++
+	return &EmbeddingResponse{
+		Vectors: nil,
+		Model:   "mock",
+	}, nil
+}
+
+// mockEmptyQueryProvider returns empty responses and implements QueryProviderFactory.
+type mockEmptyQueryProvider struct {
+	*mockEmptyProvider
+}
+
+func (p *mockEmptyQueryProvider) ForQuery() Provider {
+	return p
+}
+
+// mockErrorQueryProvider returns errors and implements QueryProviderFactory.
+type mockErrorQueryProvider struct {
+	*mockProvider
+	err error
+}
+
+func newMockErrorQueryProvider(dims int, err error) *mockErrorQueryProvider {
+	return &mockErrorQueryProvider{
+		mockProvider: newMockProvider(dims),
+		err:          err,
+	}
+}
+
+func (p *mockErrorQueryProvider) Embed(_ context.Context, _ []string) (*EmbeddingResponse, error) {
+	p.callCount++
+	return nil, p.err
+}
+
+func (p *mockErrorQueryProvider) ForQuery() Provider {
+	return p
+}
+
+func TestService_Embed_EmptyResponse(t *testing.T) {
+	provider := &mockEmptyProvider{mockProvider: newMockProvider(256)}
+	svc := NewService(provider)
+
+	vec, err := svc.Embed(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vec != nil {
+		t.Error("expected nil vector for empty response")
+	}
+}
+
+func TestService_EmbedQuery_Error(t *testing.T) {
+	expectedErr := errors.New("query provider error")
+	provider := newMockErrorQueryProvider(256, expectedErr)
+	svc := NewService(provider)
+
+	_, err := svc.EmbedQuery(context.Background(), "query")
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+}
+
+func TestService_EmbedQuery_EmptyResponse(t *testing.T) {
+	provider := &mockEmptyQueryProvider{
+		mockEmptyProvider: &mockEmptyProvider{mockProvider: newMockProvider(256)},
+	}
+	svc := NewService(provider)
+
+	vec, err := svc.EmbedQuery(context.Background(), "query")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vec != nil {
+		t.Error("expected nil vector for empty response")
+	}
+}
+
+func TestService_Batch_EmptyResponse(t *testing.T) {
+	provider := &mockEmptyProvider{mockProvider: newMockProvider(256)}
+	svc := NewService(provider)
+
+	vecs, err := svc.Batch(context.Background(), []string{"test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vecs != nil {
+		t.Error("expected nil vectors for empty response")
+	}
+}
+
+func TestService_BatchQuery_Error(t *testing.T) {
+	expectedErr := errors.New("query provider error")
+	provider := newMockErrorQueryProvider(256, expectedErr)
+	svc := NewService(provider)
+
+	_, err := svc.BatchQuery(context.Background(), []string{"query"})
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+}
+
+func TestService_BatchQuery_EmptyResponse(t *testing.T) {
+	provider := &mockEmptyQueryProvider{
+		mockEmptyProvider: &mockEmptyProvider{mockProvider: newMockProvider(256)},
+	}
+	svc := NewService(provider)
+
+	vecs, err := svc.BatchQuery(context.Background(), []string{"query"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vecs != nil {
+		t.Error("expected nil vectors for empty response")
+	}
+}
+
+func TestService_NewService_WithOptionsAndQueryProvider(t *testing.T) {
+	provider := newMockQueryProvider(256)
+
+	// Apply an option to verify it's applied to both pipelines
+	svc := NewService(provider, WithRetry(3))
+
+	// Both pipelines should be configured
+	if svc.GetPipeline() == nil {
+		t.Error("expected non-nil pipeline")
+	}
+
+	// Query path should work
+	vec, err := svc.EmbedQuery(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vec == nil {
+		t.Error("expected vector, got nil")
 	}
 }

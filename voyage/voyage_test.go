@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/zoobzio/vex"
 )
 
 func TestProvider_Name(t *testing.T) {
@@ -132,8 +134,48 @@ func TestProvider_Embed(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if resp.Vectors[0][0] != 0.1 {
+		if resp.Vectors[0][0] != float32(0.1) {
 			t.Errorf("vectors not ordered by index")
+		}
+	})
+
+	t.Run("rejects invalid index from API", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := embeddingResponse{
+				Data: []embeddingData{
+					{Index: 99, Embedding: []float64{0.1, 0.2}},
+				},
+				Model: "voyage-3",
+			}
+			//nolint:errcheck // test helper
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		p := New(Config{APIKey: "test", BaseURL: server.URL})
+		_, err := p.Embed(context.Background(), []string{"test"})
+		if err == nil {
+			t.Error("expected error for invalid index")
+		}
+	})
+
+	t.Run("rejects negative index from API", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := embeddingResponse{
+				Data: []embeddingData{
+					{Index: -1, Embedding: []float64{0.1, 0.2}},
+				},
+				Model: "voyage-3",
+			}
+			//nolint:errcheck // test helper
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		p := New(Config{APIKey: "test", BaseURL: server.URL})
+		_, err := p.Embed(context.Background(), []string{"test"})
+		if err == nil {
+			t.Error("expected error for negative index")
 		}
 	})
 }
@@ -149,6 +191,33 @@ func TestProvider_WithInputType(t *testing.T) {
 	if p.inputType != InputTypeDocument {
 		t.Errorf("original provider should be unchanged")
 	}
+}
+
+func TestProvider_ForQuery(t *testing.T) {
+	p := New(Config{APIKey: "test", InputType: InputTypeDocument})
+
+	queryProvider := p.ForQuery()
+
+	// Should be a *Provider with query input type
+	qp, ok := queryProvider.(*Provider)
+	if !ok {
+		t.Fatalf("expected *Provider, got %T", queryProvider)
+	}
+	if qp.inputType != InputTypeQuery {
+		t.Errorf("expected query input type, got %s", qp.inputType)
+	}
+
+	// Original should be unchanged
+	if p.inputType != InputTypeDocument {
+		t.Errorf("original provider should be unchanged")
+	}
+}
+
+func TestProvider_ImplementsQueryProviderFactory(_ *testing.T) {
+	p := New(Config{APIKey: "test"})
+
+	// Verify it implements QueryProviderFactory (compile-time check)
+	var _ vex.QueryProviderFactory = p
 }
 
 func TestConfig_Defaults(t *testing.T) {

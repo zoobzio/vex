@@ -168,8 +168,48 @@ func TestProvider_Embed(t *testing.T) {
 		}
 
 		// First vector should be [0.1, 0.2] based on index
-		if resp.Vectors[0][0] != 0.1 {
+		if resp.Vectors[0][0] != float32(0.1) {
 			t.Errorf("vectors not ordered by index")
+		}
+	})
+
+	t.Run("rejects invalid index from API", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := embeddingResponse{
+				Data: []embeddingData{
+					{Index: 99, Embedding: []float64{0.1, 0.2}},
+				},
+				Model: "test",
+			}
+			//nolint:errcheck // test helper
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		p := New(Config{APIKey: "test", BaseURL: server.URL})
+		_, err := p.Embed(context.Background(), []string{"test"})
+		if err == nil {
+			t.Error("expected error for invalid index")
+		}
+	})
+
+	t.Run("rejects negative index from API", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := embeddingResponse{
+				Data: []embeddingData{
+					{Index: -1, Embedding: []float64{0.1, 0.2}},
+				},
+				Model: "test",
+			}
+			//nolint:errcheck // test helper
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		p := New(Config{APIKey: "test", BaseURL: server.URL})
+		_, err := p.Embed(context.Background(), []string{"test"})
+		if err == nil {
+			t.Error("expected error for negative index")
 		}
 	})
 }

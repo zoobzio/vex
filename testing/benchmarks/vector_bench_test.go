@@ -9,7 +9,7 @@ import (
 func BenchmarkVector_Normalize(b *testing.B) {
 	vec := make(vex.Vector, 1536)
 	for i := range vec {
-		vec[i] = float64(i) / 1536.0
+		vec[i] = float32(i) / 1536.0
 	}
 
 	b.ResetTimer()
@@ -21,7 +21,7 @@ func BenchmarkVector_Normalize(b *testing.B) {
 func BenchmarkVector_Norm(b *testing.B) {
 	vec := make(vex.Vector, 1536)
 	for i := range vec {
-		vec[i] = float64(i) / 1536.0
+		vec[i] = float32(i) / 1536.0
 	}
 
 	b.ResetTimer()
@@ -34,8 +34,8 @@ func BenchmarkVector_Dot(b *testing.B) {
 	v1 := make(vex.Vector, 1536)
 	v2 := make(vex.Vector, 1536)
 	for i := range v1 {
-		v1[i] = float64(i) / 1536.0
-		v2[i] = float64(1536-i) / 1536.0
+		v1[i] = float32(i) / 1536.0
+		v2[i] = float32(1536-i) / 1536.0
 	}
 
 	b.ResetTimer()
@@ -48,8 +48,8 @@ func BenchmarkVector_CosineSimilarity(b *testing.B) {
 	v1 := make(vex.Vector, 1536)
 	v2 := make(vex.Vector, 1536)
 	for i := range v1 {
-		v1[i] = float64(i) / 1536.0
-		v2[i] = float64(1536-i) / 1536.0
+		v1[i] = float32(i) / 1536.0
+		v2[i] = float32(1536-i) / 1536.0
 	}
 
 	b.ResetTimer()
@@ -62,8 +62,8 @@ func BenchmarkVector_EuclideanDistance(b *testing.B) {
 	v1 := make(vex.Vector, 1536)
 	v2 := make(vex.Vector, 1536)
 	for i := range v1 {
-		v1[i] = float64(i) / 1536.0
-		v2[i] = float64(1536-i) / 1536.0
+		v1[i] = float32(i) / 1536.0
+		v2[i] = float32(1536-i) / 1536.0
 	}
 
 	b.ResetTimer()
@@ -77,7 +77,7 @@ func BenchmarkPool_Mean(b *testing.B) {
 	for i := range vectors {
 		vec := make(vex.Vector, 1536)
 		for j := range vec {
-			vec[j] = float64(i*1536+j) / 15360.0
+			vec[j] = float32(i*1536+j) / 15360.0
 		}
 		vectors[i] = vec
 	}
@@ -93,7 +93,7 @@ func BenchmarkPool_Max(b *testing.B) {
 	for i := range vectors {
 		vec := make(vex.Vector, 1536)
 		for j := range vec {
-			vec[j] = float64(i*1536+j) / 15360.0
+			vec[j] = float32(i*1536+j) / 15360.0
 		}
 		vectors[i] = vec
 	}

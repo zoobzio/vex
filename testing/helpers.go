@@ -103,13 +103,13 @@ func (p *MockProvider) generateVector(text string) vex.Vector {
 		for i := 0; i < p.dimensions; i++ {
 			// Use hash bytes to seed values
 			idx := i % 32
-			val := float64(hash[idx]) / 255.0
+			val := float32(hash[idx]) / 255.0
 			vec[i] = val*2 - 1 // Range [-1, 1]
 		}
 	} else {
 		// Generate pseudo-random vector
 		for i := 0; i < p.dimensions; i++ {
-			vec[i] = float64(i%100) / 100.0
+			vec[i] = float32(i%100) / 100.0
 		}
 	}
 
@@ -146,7 +146,7 @@ func GenerateTestVector(dimensions int, seed int64) vex.Vector {
 	vec := make(vex.Vector, dimensions)
 	for i := 0; i < dimensions; i++ {
 		// Simple deterministic generation
-		val := float64((seed+int64(i))%1000) / 1000.0
+		val := float32((seed+int64(i))%1000) / 1000.0
 		vec[i] = val*2 - 1
 	}
 	return vec.Normalize()
@@ -161,8 +161,8 @@ func GenerateSimilarVectors(dimensions int, targetSimilarity float64) (baseVec v
 	noise := GenerateTestVector(dimensions, 123)
 
 	similarVec = make(vex.Vector, dimensions)
-	weight := math.Sqrt(targetSimilarity)
-	noiseWeight := math.Sqrt(1 - targetSimilarity)
+	weight := float32(math.Sqrt(targetSimilarity))
+	noiseWeight := float32(math.Sqrt(1 - targetSimilarity))
 
 	for i := 0; i < dimensions; i++ {
 		similarVec[i] = weight*baseVec[i] + noiseWeight*noise[i]
@@ -170,4 +170,3 @@ func GenerateSimilarVectors(dimensions int, targetSimilarity float64) (baseVec v
 
 	return baseVec, similarVec.Normalize()
 }
-

@@ -97,6 +97,12 @@ func (p *Provider) WithTaskType(taskType TaskType) *Provider {
 	return &newP
 }
 
+// ForQuery returns a provider configured for query embedding mode.
+// Implements vex.QueryProviderFactory.
+func (p *Provider) ForQuery() vex.Provider {
+	return p.WithTaskType(TaskTypeRetrievalQuery)
+}
+
 // Embed generates embeddings for the given texts.
 func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingResponse, error) {
 	if len(texts) == 0 {
@@ -162,7 +168,7 @@ func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingRes
 
 	vectors := make([]vex.Vector, len(embResp.Embeddings))
 	for i, emb := range embResp.Embeddings {
-		vectors[i] = emb.Values
+		vectors[i] = toFloat32(emb.Values)
 	}
 
 	dims := p.dimensions
@@ -179,6 +185,15 @@ func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingRes
 			TotalTokens:  len(texts),
 		},
 	}, nil
+}
+
+// toFloat32 converts a float64 slice to a vex.Vector (float32).
+func toFloat32(f64 []float64) vex.Vector {
+	result := make(vex.Vector, len(f64))
+	for i, v := range f64 {
+		result[i] = float32(v)
+	}
+	return result
 }
 
 // API types
@@ -206,7 +221,7 @@ type batchEmbedResponse struct {
 }
 
 type embedding struct {
-	Values vex.Vector `json:"values"`
+	Values []float64 `json:"values"`
 }
 
 type errorResponse struct {
