@@ -1,6 +1,6 @@
 module github.com/zoobzio/vex/testing/integration
 
-go 1.24
+go 1.24.0
 
 toolchain go1.25.5
 
