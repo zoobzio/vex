@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/zoobzio/vex"
 )
 
 func TestProvider_Name(t *testing.T) {
@@ -145,6 +147,33 @@ func TestProvider_WithTaskType(t *testing.T) {
 	if p.taskType != TaskTypeRetrievalDocument {
 		t.Errorf("original provider should be unchanged")
 	}
+}
+
+func TestProvider_ForQuery(t *testing.T) {
+	p := New(Config{APIKey: "test", TaskType: TaskTypeRetrievalDocument})
+
+	queryProvider := p.ForQuery()
+
+	// Should be a *Provider with query task type
+	qp, ok := queryProvider.(*Provider)
+	if !ok {
+		t.Fatalf("expected *Provider, got %T", queryProvider)
+	}
+	if qp.taskType != TaskTypeRetrievalQuery {
+		t.Errorf("expected RETRIEVAL_QUERY task type, got %s", qp.taskType)
+	}
+
+	// Original should be unchanged
+	if p.taskType != TaskTypeRetrievalDocument {
+		t.Errorf("original provider should be unchanged")
+	}
+}
+
+func TestProvider_ImplementsQueryProviderFactory(_ *testing.T) {
+	p := New(Config{APIKey: "test"})
+
+	// Verify it implements QueryProviderFactory (compile-time check)
+	var _ vex.QueryProviderFactory = p
 }
 
 func TestConfig_Defaults(t *testing.T) {

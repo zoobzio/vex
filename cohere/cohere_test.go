@@ -45,7 +45,7 @@ func TestProvider_Embed(t *testing.T) {
 
 			resp := embeddingResponse{
 				ID: "test-id",
-				Embeddings: []vex.Vector{
+				Embeddings: [][]float64{
 					{0.1, 0.2, 0.3},
 					{0.4, 0.5, 0.6},
 				},
@@ -120,6 +120,33 @@ func TestProvider_WithInputType(t *testing.T) {
 	if p.inputType != InputTypeSearchDocument {
 		t.Errorf("original provider should be unchanged")
 	}
+}
+
+func TestProvider_ForQuery(t *testing.T) {
+	p := New(Config{APIKey: "test", InputType: InputTypeSearchDocument})
+
+	queryProvider := p.ForQuery()
+
+	// Should be a *Provider with query input type
+	qp, ok := queryProvider.(*Provider)
+	if !ok {
+		t.Fatalf("expected *Provider, got %T", queryProvider)
+	}
+	if qp.inputType != InputTypeSearchQuery {
+		t.Errorf("expected search_query input type, got %s", qp.inputType)
+	}
+
+	// Original should be unchanged
+	if p.inputType != InputTypeSearchDocument {
+		t.Errorf("original provider should be unchanged")
+	}
+}
+
+func TestProvider_ImplementsQueryProviderFactory(_ *testing.T) {
+	p := New(Config{APIKey: "test"})
+
+	// Verify it implements QueryProviderFactory (compile-time check)
+	var _ vex.QueryProviderFactory = p
 }
 
 func TestConfig_Defaults(t *testing.T) {

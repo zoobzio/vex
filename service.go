@@ -22,11 +22,13 @@ type EmbedRequest struct {
 
 // Service wraps an embedding provider with pipeline-based reliability.
 type Service struct {
-	pipeline    pipz.Chainable[*EmbedRequest]
-	provider    Provider
-	chunker     *Chunker
-	poolingMode PoolingMode
-	normalize   bool
+	pipeline      pipz.Chainable[*EmbedRequest]
+	queryPipeline pipz.Chainable[*EmbedRequest]
+	provider      Provider
+	queryProvider Provider
+	chunker       *Chunker
+	poolingMode   PoolingMode
+	normalize     bool
 }
 
 // ServiceConfig configures a Service.
@@ -46,13 +48,26 @@ func NewService(provider Provider, opts ...Option) *Service {
 		pipeline = opts[i](pipeline)
 	}
 
-	return &Service{
+	svc := &Service{
 		pipeline:    pipeline,
 		provider:    provider,
 		chunker:     DefaultChunker(),
 		poolingMode: PoolMean,
 		normalize:   true,
 	}
+
+	// Auto-detect query provider for supporting backends
+	if qp, ok := provider.(QueryProviderFactory); ok {
+		svc.queryProvider = qp.ForQuery()
+		queryTerminal := NewTerminal(svc.queryProvider)
+		queryPipeline := queryTerminal
+		for i := len(opts) - 1; i >= 0; i-- {
+			queryPipeline = opts[i](queryPipeline)
+		}
+		svc.queryPipeline = queryPipeline
+	}
+
+	return svc
 }
 
 // NewTerminal creates a terminal processor that calls the embedding provider.
@@ -100,8 +115,24 @@ func (s *Service) WithNormalize(normalize bool) *Service {
 }
 
 // Embed generates an embedding for a single text.
+// Uses document mode for providers that distinguish query vs document embeddings.
 func (s *Service) Embed(ctx context.Context, text string) (Vector, error) {
 	vectors, err := s.Batch(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+	if len(vectors) == 0 {
+		return nil, nil
+	}
+	return vectors[0], nil
+}
+
+// EmbedQuery generates an embedding optimized for search queries.
+// For providers that distinguish query vs document embeddings (Voyage, Cohere, Gemini),
+// this uses query-optimized mode. For providers without this distinction (OpenAI),
+// this behaves identically to Embed.
+func (s *Service) EmbedQuery(ctx context.Context, text string) (Vector, error) {
+	vectors, err := s.BatchQuery(ctx, []string{text})
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +194,69 @@ func (s *Service) Batch(ctx context.Context, texts []string) ([]Vector, error) {
 	}
 
 	emitEmbedCompleted(ctx, requestID, s.provider.Name(), processed.Response, duration)
+
+	return vectors, nil
+}
+
+// BatchQuery generates query-optimized embeddings for multiple texts.
+// For providers that distinguish query vs document embeddings, this uses
+// query-optimized mode. Otherwise behaves identically to Batch.
+func (s *Service) BatchQuery(ctx context.Context, texts []string) ([]Vector, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	// Fall back to regular Batch if no query provider
+	if s.queryProvider == nil {
+		return s.Batch(ctx, texts)
+	}
+
+	requestID := uuid.New().String()
+	start := time.Now()
+
+	emitEmbedStarted(ctx, requestID, s.queryProvider.Name(), len(texts))
+
+	// Chunk texts if needed
+	var allChunks []string
+	var chunkMapping []int
+	for i, text := range texts {
+		chunks := s.chunker.Chunk(text)
+		for range chunks {
+			chunkMapping = append(chunkMapping, i)
+		}
+		allChunks = append(allChunks, chunks...)
+	}
+
+	// Create and process request using query pipeline
+	req := &EmbedRequest{
+		Texts:     allChunks,
+		RequestID: requestID,
+		Provider:  s.queryProvider.Name(),
+	}
+
+	processed, err := s.queryPipeline.Process(ctx, req)
+	duration := time.Since(start)
+
+	if err != nil {
+		emitEmbedFailed(ctx, requestID, s.queryProvider.Name(), err, duration)
+		return nil, err
+	}
+
+	if processed.Response == nil || len(processed.Response.Vectors) == 0 {
+		return nil, nil
+	}
+
+	// Pool chunks back to original texts
+	vectors := s.poolChunks(texts, processed.Response.Vectors, chunkMapping)
+
+	// Normalize if configured
+	if s.normalize {
+		for i, v := range vectors {
+			vectors[i] = v.Normalize()
+		}
+	}
+
+	emitEmbedCompleted(ctx, requestID, s.queryProvider.Name(), processed.Response, duration)
 
 	return vectors, nil
 }

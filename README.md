@@ -18,7 +18,7 @@ provider := openai.New(openai.Config{APIKey: os.Getenv("OPENAI_API_KEY")})
 svc := vex.NewService(provider)
 
 vec, _ := svc.Embed(ctx, "hello world")
-// vec is a []float64 of length 1536
+// vec is a []float32 of length 1536
 ```
 
 ## Install
@@ -102,6 +102,23 @@ svc := vex.NewService(provider,
     vex.WithFallback(backupService),            // Fallback provider
 )
 ```
+
+## Query vs Document Embeddings
+
+Some providers (Voyage, Cohere, Gemini) optimize embeddings differently based on intent. Use `Embed` for documents and `EmbedQuery` for search queries:
+
+```go
+// Embedding documents for storage
+docVec, _ := svc.Embed(ctx, "The quick brown fox jumps over the lazy dog")
+
+// Embedding queries for search
+queryVec, _ := svc.EmbedQuery(ctx, "animals jumping")
+
+// Compare for retrieval
+similarity := queryVec.CosineSimilarity(docVec)
+```
+
+For providers without this distinction (OpenAI), `EmbedQuery` behaves identically to `Embed`.
 
 ## Chunking
 

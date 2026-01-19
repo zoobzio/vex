@@ -10,7 +10,7 @@ func (v Vector) Normalize() Vector {
 	}
 	result := make(Vector, len(v))
 	for i, val := range v {
-		result[i] = val / norm
+		result[i] = float32(float64(val) / norm)
 	}
 	return result
 }
@@ -19,7 +19,7 @@ func (v Vector) Normalize() Vector {
 func (v Vector) Norm() float64 {
 	var sum float64
 	for _, val := range v {
-		sum += val * val
+		sum += float64(val) * float64(val)
 	}
 	return math.Sqrt(sum)
 }
@@ -31,7 +31,7 @@ func (v Vector) Dot(other Vector) float64 {
 	}
 	var sum float64
 	for i := range v {
-		sum += v[i] * other[i]
+		sum += float64(v[i]) * float64(other[i])
 	}
 	return sum
 }
@@ -58,7 +58,7 @@ func (v Vector) EuclideanDistance(other Vector) float64 {
 	}
 	var sum float64
 	for i := range v {
-		diff := v[i] - other[i]
+		diff := float64(v[i]) - float64(other[i])
 		sum += diff * diff
 	}
 	return math.Sqrt(sum)
@@ -103,15 +103,17 @@ func Pool(vectors []Vector, mode PoolingMode) Vector {
 
 func poolMean(vectors []Vector) Vector {
 	dims := len(vectors[0])
-	result := make(Vector, dims)
+	// Use float64 for accumulation to avoid precision loss
+	sums := make([]float64, dims)
 	for _, vec := range vectors {
 		for i, val := range vec {
-			result[i] += val
+			sums[i] += float64(val)
 		}
 	}
 	n := float64(len(vectors))
+	result := make(Vector, dims)
 	for i := range result {
-		result[i] /= n
+		result[i] = float32(sums[i] / n)
 	}
 	return result
 }

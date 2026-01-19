@@ -128,7 +128,10 @@ func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingRes
 
 	vectors := make([]vex.Vector, len(embResp.Data))
 	for _, d := range embResp.Data {
-		vectors[d.Index] = d.Embedding
+		if d.Index < 0 || d.Index >= len(vectors) {
+			return nil, fmt.Errorf("invalid index %d from API", d.Index)
+		}
+		vectors[d.Index] = toFloat32(d.Embedding)
 	}
 
 	return &vex.EmbeddingResponse{
@@ -155,6 +158,15 @@ func dimensionsForModel(model string) int {
 	}
 }
 
+// toFloat32 converts a float64 slice to a vex.Vector (float32).
+func toFloat32(f64 []float64) vex.Vector {
+	result := make(vex.Vector, len(f64))
+	for i, v := range f64 {
+		result[i] = float32(v)
+	}
+	return result
+}
+
 // API types
 
 type embeddingRequest struct {
@@ -170,9 +182,9 @@ type embeddingResponse struct {
 }
 
 type embeddingData struct {
-	Object    string     `json:"object"`
-	Embedding vex.Vector `json:"embedding"`
-	Index     int        `json:"index"`
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
 }
 
 type usage struct {

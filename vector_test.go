@@ -33,8 +33,8 @@ func TestVector_Normalize(t *testing.T) {
 		normalized := vec.Normalize()
 
 		// Ratios should be preserved
-		ratio1 := vec[1] / vec[0]
-		ratio2 := normalized[1] / normalized[0]
+		ratio1 := float64(vec[1]) / float64(vec[0])
+		ratio2 := float64(normalized[1]) / float64(normalized[0])
 
 		if math.Abs(ratio1-ratio2) > 0.0001 {
 			t.Errorf("direction not preserved: original ratio %f, normalized ratio %f", ratio1, ratio2)

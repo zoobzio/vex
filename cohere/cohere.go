@@ -97,6 +97,12 @@ func (p *Provider) WithInputType(inputType InputType) *Provider {
 	return &newP
 }
 
+// ForQuery returns a provider configured for query embedding mode.
+// Implements vex.QueryProviderFactory.
+func (p *Provider) ForQuery() vex.Provider {
+	return p.WithInputType(InputTypeSearchQuery)
+}
+
 // Embed generates embeddings for the given texts.
 func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingResponse, error) {
 	if len(texts) == 0 {
@@ -151,7 +157,9 @@ func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingRes
 	}
 
 	vectors := make([]vex.Vector, len(embResp.Embeddings))
-	copy(vectors, embResp.Embeddings)
+	for i, emb := range embResp.Embeddings {
+		vectors[i] = toFloat32(emb)
+	}
 
 	dims := p.dimensions
 	if len(vectors) > 0 && len(vectors[0]) > 0 {
@@ -169,6 +177,15 @@ func (p *Provider) Embed(ctx context.Context, texts []string) (*vex.EmbeddingRes
 	}, nil
 }
 
+// toFloat32 converts a float64 slice to a vex.Vector (float32).
+func toFloat32(f64 []float64) vex.Vector {
+	result := make(vex.Vector, len(f64))
+	for i, v := range f64 {
+		result[i] = float32(v)
+	}
+	return result
+}
+
 // API types
 
 type embeddingRequest struct {
@@ -178,9 +195,9 @@ type embeddingRequest struct {
 }
 
 type embeddingResponse struct {
-	ID         string       `json:"id"`
-	Embeddings []vex.Vector `json:"embeddings"`
-	Meta       meta         `json:"meta"`
+	ID         string      `json:"id"`
+	Embeddings [][]float64 `json:"embeddings"`
+	Meta       meta        `json:"meta"`
 }
 
 type meta struct {

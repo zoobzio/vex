@@ -4,7 +4,8 @@ package vex
 import "context"
 
 // Vector represents an embedding vector.
-type Vector []float64
+// Uses float32 for compatibility with vector databases (pgvector, Pinecone, Qdrant, etc.).
+type Vector []float32
 
 // Usage tracks token consumption for an embedding request.
 type Usage struct {
@@ -30,6 +31,15 @@ type Provider interface {
 
 	// Dimensions returns the output vector dimensionality.
 	Dimensions() int
+}
+
+// QueryProviderFactory is optionally implemented by providers that distinguish
+// query vs document embeddings. Providers implementing this interface can
+// generate query-optimized embeddings for improved retrieval quality.
+type QueryProviderFactory interface {
+	Provider
+	// ForQuery returns a provider configured for query embedding mode.
+	ForQuery() Provider
 }
 
 // SimilarityMetric defines how vectors are compared.
